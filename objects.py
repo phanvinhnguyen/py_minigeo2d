@@ -129,7 +129,7 @@ class Vector:
 
     def __mul__(self, other):
       if type(other) is Vector:
-        return self.dot(other.coord)
+        return self.dot(other)
       else:
         return Vector(other*self.coord)
 
@@ -208,7 +208,11 @@ class Line:
 
 class Circle:
     def __init__(self, p0, p1, p2):
-        if (p0==p1) or (p1==p2) or (p2==p2):
+        if (p0==p1) or (p1==p2) or (p2==p0):
+            print('Some points are identical')
+            raise ValueError
+        elif (p1-p0)@(p2-p0)==0:
+            print('Points are colinear')
             raise ValueError
         else:
             self.p0 = p0
@@ -223,13 +227,13 @@ class Circle:
 
     @property
     def cen(self):
-        s0 = Segment(self.p0, self.p3)
-        s1 = Segment(self.p1, self.p3)
+        s0 = Segment(self.p0, self.p2)
+        s1 = Segment(self.p1, self.p2)
 
         l1 = s0.bisect
         l2 = s1.bisect
 
-        return l1.intersect(l2)
+        return l1.intersect_p(l2) #points not colinear, we sure there is one intersection point
 
     @property
     def rad(self):
@@ -249,18 +253,19 @@ class Circle:
                 m = other.projection_of_point(c)
                 return PointCollection([m+h*other.u, m-h*other.u])
         elif type(other) is Circle:
-            c  = self.cen
+            c1 = self.cen
+            c2 = other.cen
             r1 = self.rad
             r2 = other.rad
-            cd = abs(c)
+            v  = c2-c1
+            cd = abs(v)
 
             if cd>r1+r2:
                 return PointCollection([])
             elif cd==r1+r2:
-                return PointCollection([c+r1*(other.cen-c).u])
+                return PointCollection([c+r1*v.u])
             else: #center distance shorter than sum radii, two distinct intesection point
                 h = (r1*r1+cd*cd-r2*r2)/(2*cd)
-                v = (other.cen-c)
                 m = c + h*v.u
                 return self.intersect(Line(m, m+v.n))
         else:
@@ -334,7 +339,7 @@ class Segment:
     def intersect(self, other):
         if type(other) is Segment:
             tmp = self.l.intersect(other.l)
-            selected = [p for p in tmp if (p-self.p0)*(p-self.p1)<0 and (p-other.p0)*(p-other.p1)<0]
+            selected = [p for p in tmp.point_list if (p-self.p0)*(p-self.p1)<0 and (p-other.p0)*(p-other.p1)<0]
                     
             return PointCollection(selected)
         elif type(other) is CircularSegment:
@@ -354,7 +359,7 @@ class Segment:
 
 class CircularSegment:
     def __init__(self, p0, p1, p2):
-        if (p0==p1) or (p1==p2) or (p2==p2):
+        if (p0==p1) or (p1==p2) or (p2==p0):
             raise ValueError
         else:
             self.p0 = p0
@@ -410,17 +415,21 @@ class CircularSegment:
     def intersect(self, other):
         if type(other) is Segment:
             tmp = self.c.intersect(other.l)
-            selected = [p for p in tmp if (p-other.p0)*(p-other.p1)<0 and self.secant.l.points_same_side(p, self.p2)]
+            selected = [p for p in tmp.point_list if (p-other.p0)*(p-other.p1)<0 and self.secant.l.points_same_side(p, self.p2)]
             return PointCollection(selected)
         elif type(other) is CircularSegment:
             tmp = self.c.intersect(other.c)
-            selected = [p for p in tmp if self.secant.l.points_same_side(p, self.p2) and other.secant.l.points_same_side(p, other.p2)]
+            selected = [p for p in tmp.point_list if self.secant.l.points_same_side(p, self.p2) and other.secant.l.points_same_side(p, other.p2)]
             return PointCollection(selected)
         
     def phis(self):
-        phi0, _ = cart2pol(self.p0.x, self.p0.y)
-        phi1, _ = cart2pol(self.p1.x, self.p1.y)
-        phi2, _ = cart2pol(self.p2.x, self.p2.y)
+        v0r = self.p0 - self.cen
+        v1r = self.p1 - self.cen
+        v2r = self.p2 - self.cen
+
+        phi0, _ = cart2pol(v0r.vx, v0r.vy)
+        phi1, _ = cart2pol(v1r.vx, v1r.vy)
+        phi2, _ = cart2pol(v2r.vx, v2r.vy)
         
         if phi0<phi1: #if phi2 at the middle, the arc is in CCW, if not, arc is in CW, phi0 must be high to get that, add 2*pi to phi0
             if (phi2<phi0) or (phi2>phi1):
@@ -428,6 +437,8 @@ class CircularSegment:
         else: #phi0>phi1, phi2 at the middle, the arc is in CW, if not, arc is in CCW, phi0 must be low to get that, subtract 2*pi to phi0
             if (phi2<phi1) or (phi2>phi0):
                 phi0 = phi0-2*np.pi
+                
+        return phi0, phi1, phi2
                 
     def point_at_length(self, l):
         if l<0:
