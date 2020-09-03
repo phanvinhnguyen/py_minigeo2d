@@ -47,13 +47,33 @@ class Point:
     def __eq__(self, other):
         return (self.x==other.x) and (self.y==other.y)
 
-class Point_collection:
+    def rot(self, origin, angle):
+      rmat = np.matrix([[np.cos(angle), np.sin(angle)],[-np.sin(angle), np.cos(angle)]])
+      lvec = np.matrix((self.coord - origin.coord).reshape(-1,1))
+      rvec = rmat*lvec
+      return Point([rvec[0,0], rvec[1,0]])
+
+    def plot(self, ax):
+      ax.scatter(self.x, self.y)
+
+class PointCollection:
     def __init__(self, pnt_ls=None):
         if pnt_ls is not None:
             self._pnt_ls = pnt_ls
             self.length = len(pnt_ls)
         else:
             self.length = np.Inf
+
+    def __str__(self):
+      return 'Point collection'
+
+    def __repr__(self):
+      return 'Point collection'
+
+    def plot(self, ax):
+      for point in _pnt_ls:
+        ax.scatter(point.x, point.y)
+
 
 class Vector:
     def __init__(self, coord):
@@ -99,7 +119,13 @@ class Vector:
             return None
 
     def __mul__(self, other):
+      if type(other) is Vector:
+        return self.dot(other.coord)
+      else:
         return Vector(other*self.coord)
+
+    def __matmul__(self, other):
+      return self.cross(other)
 
     def __rmul__(self, other):
         return Vector(other*self.coord)
@@ -169,3 +195,9 @@ class CircularSegment:
             self.p0 = p0
             self.p1 = p1
             self.p2 = p2
+
+    def __str__(self):
+      return f'{self.p0}, {self.p1} and {self.p2}'
+
+    def __repr__(self):
+      return f'Circular segment with points {self.p0}, {self.p1} and {self.p2}'
