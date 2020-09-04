@@ -63,6 +63,9 @@ class Point:
         angle = angled*np.pi/180
         return self.rot(rcenter, angle)
 
+    def translate(self, shift_vec):
+        return self + shift_vec
+
     def plot(self, ax):
         ax.scatter(self.x, self.y)
 
@@ -79,6 +82,27 @@ class PointCollection:
 
     def __repr__(self):
         return 'Point collection'
+
+    def __add__(self, other):
+        if type(other) is PointCollection:
+            return PointCollection(self.point_list+other.point_list)
+        elif type(other) is list:
+            return PointCollection(self.point_list+other)
+        else:
+            return PointCollection(self.point_list+[other])
+
+    def __radd__(self, other):
+        return self + other
+
+    def rot(self, origin, angle):
+        return PointCollection([p.rot(origin, angle) for p in self.point_list])
+
+    def rotd(self, origin, angled):
+        angle = angled*np.pi/180
+        return self.rot(angle)
+
+    def translate(self, shift_vec):
+        return PointCollection([p.translate(shift_vec) for p in self.point_list])
 
     def plot(self, ax):
         for point in self.point_list:
@@ -205,6 +229,24 @@ class Line:
         #use when you sure you have one and only one intersection point
         return self.intersect(other).point_list[0]
 
+    def rot(self, origin, angle):
+        return Line(self.p0.rot(origin, angle), self.p1.rot(origin, angle))
+
+    def rotd(self, origin, angled):
+        angle = angled*np.pi/180
+        return self.rot(origin, angle)
+
+    def translate(self, shift_vec):
+        return Line(self.p0.translate(shift_vec), self.p1.translate(shift_vec))
+
+    def coincident_line(self, l_other):
+        return self.contain_point(l_other.p0) and self.contain_point(l_other.p1)
+
+    def parallel_line(self, l_other):
+        return (not self.contain_point(l_other.p0)) and (l_other.u*self.n==0)
+
+    def plot(self, ax):
+        ax.plot([self.p0.x, self.p1.x], [self.p0.y, self.p1.y])
 
 class Circle:
     def __init__(self, p0, p1, p2):
@@ -270,16 +312,26 @@ class Circle:
                 return self.intersect(Line(m, m+v.n))
         else:
             raise ValueError
-            
+
+    def rot(self, origin, angle):
+        return Circle(self.p0.rot(origin, angle), self.p1.rot(origin, angle), self.p2.rot(origin, angle))
+
+    def rotd(self, origin, angled):
+        angle = angled*np.pi/180
+        return self.rot(origin, angle)
+
+    def translate(self, shift_vec):
+        return Circle(self.p0.translate(shift_vec), self.p1.translate(shift_vec), self.p2.translate(shift_vec))
+
     def plot(self, ax):
         r = self.rad
         c = self.cen
-        
+
         phi = np.linspace(0, 2*np.pi, num=NPOINT)
-        
+
         x = r*np.cos(phi) + c.x
         y = r*np.sin(phi) + c.y
-        
+
         ax.plot(x,y)
 
 class Segment:
@@ -315,11 +367,11 @@ class Segment:
     @property
     def bisect(self):
         return Line(self.p_middle-self.n, self.p_middle+self.n)
-    
+
     @property
     def length(self):
         return abs(self.p1-self.p0)
-    
+
     @property
     def end_points(self):
         return [self.p0, self.p1]
@@ -340,11 +392,11 @@ class Segment:
         if type(other) is Segment:
             tmp = self.l.intersect(other.l)
             selected = [p for p in tmp.point_list if (p-self.p0)*(p-self.p1)<0 and (p-other.p0)*(p-other.p1)<0]
-                    
+
             return PointCollection(selected)
         elif type(other) is CircularSegment:
             return other.intersect(self)
-        
+
     def point_at_length(self, l):
         if l<0:
             return self.p0
@@ -352,10 +404,20 @@ class Segment:
             return self.p1
         else: #somewhere in the middle
             return self.p0+l*self.u
-        
+
+    def rot(self, origin, angle):
+        return Segment(self.p0.rot(origin, angle), self.p1.rot(origin, angle))
+
+    def rotd(self, origin, angled):
+        angle = angled*np.pi/180
+        return self.rot(origin, angle)
+
+    def translate(self, shift_vec):
+        return Segment(self.p0.translate(shift_vec), self.p1.translate(shift_vec))
+    
     def plot(self, ax):
         ax.plot([self.p0.x, self.p1.x], [self.p0.y, self.p1.y])
-        
+
 
 class CircularSegment:
     def __init__(self, p0, p1, p2):
@@ -375,11 +437,11 @@ class CircularSegment:
     @property
     def c(self):
         return Circle(self.p0, self.p1, self.p2)
-    
+
     @property
     def cen(self):
         return self.c.cen
-    
+
     @property
     def rad(self):
         return self.c.rad
@@ -387,7 +449,7 @@ class CircularSegment:
     @property
     def secant(self):
         return Segment(self.p0, self.p1)
-    
+
     @property
     def phi0(self):
         phi, _, _ = self.phis()
@@ -401,8 +463,8 @@ class CircularSegment:
     @property
     def phi2(self):
         _, _, phi = self.phis()
-        return phi  
-    
+        return phi
+
     @property
     def length(self):
         phi0, phi1, _ = self.phis()
@@ -411,7 +473,7 @@ class CircularSegment:
     @property
     def end_points(self):
         return [self.p0, self.p1]
-    
+
     def intersect(self, other):
         if type(other) is Segment:
             tmp = self.c.intersect(other.l)
@@ -421,7 +483,7 @@ class CircularSegment:
             tmp = self.c.intersect(other.c)
             selected = [p for p in tmp.point_list if self.secant.l.points_same_side(p, self.p2) and other.secant.l.points_same_side(p, other.p2)]
             return PointCollection(selected)
-        
+
     def phis(self):
         v0r = self.p0 - self.cen
         v1r = self.p1 - self.cen
@@ -430,16 +492,16 @@ class CircularSegment:
         phi0, _ = cart2pol(v0r.vx, v0r.vy)
         phi1, _ = cart2pol(v1r.vx, v1r.vy)
         phi2, _ = cart2pol(v2r.vx, v2r.vy)
-        
+
         if phi0<phi1: #if phi2 at the middle, the arc is in CCW, if not, arc is in CW, phi0 must be high to get that, add 2*pi to phi0
             if (phi2<phi0) or (phi2>phi1):
                 phi0 = phi0+2*np.pi
         else: #phi0>phi1, phi2 at the middle, the arc is in CW, if not, arc is in CCW, phi0 must be low to get that, subtract 2*pi to phi0
             if (phi2<phi1) or (phi2>phi0):
                 phi0 = phi0-2*np.pi
-                
+
         return phi0, phi1, phi2
-                
+
     def point_at_length(self, l):
         if l<0:
             return self.p0
@@ -451,30 +513,61 @@ class CircularSegment:
             v = self.p0-c
             phi = l/r
             return c+v.rot(phi)
-        
+
+    def distance_to_point(self, p):
+        cen = self.cen
+        if p==cen:
+            return self.rad
+        else:
+            l = Line(p, cen)
+            pc = l.intersect(self.c)
+            pc = pc + [self.p0, self.p1]
+            d_list = [abs(p-p_ind) for p_ind in pc.point_list]
+            return min(d_list)
+
+    def rot(self, origin, angle):
+        return CircularSegment(self.p0.rot(origin, angle), self.p1.rot(origin, angle), self.p2.rot(origin, angle))
+
+    def rotd(self, origin, angled):
+        angle = angled*np.pi/180
+        return self.rot(origin, angle)
+
+    def translate(self, shift_vec):
+        return CircularSegment(self.p0.translate(shift_vec), self.p1.translate(shift_vec), self.p2.translate(shift_vec))
+
+
     def plot(self, ax):
         phi0, phi1, _ = self.phis()
         r = self.rad
         c = self.cen
-        
+
         phi = np.linspace(phi0,phi1,num=int(NPOINT*abs(phi1-phi0)/(2*np.pi))) #scale NPOINT make it looks more uniform, nothing special here
-        
+
         x = r*np.cos(phi) + c.x
         y = r*np.sin(phi) + c.y
-        
+
         ax.plot(x,y)
-        
+
 class Path:
     def __init__(self, member_list):
         self.member_list = member_list
-        
+        self.ref_list = []
+
     @property
     def _l_accum(self):
-        tmp = [member.length for member in member_list]
-        
+        return [member.length for member in self.member_list]
+
+    def __add__(self, other):
+        if type(other) is Path:
+            return Path(self.member_list+other.member_list)
+        elif type(other) is list:
+            return Path(self.member_list+other)
+        else:
+            return Path(self.member_list + [other])
+
     def point_at_length(self, l):
         l_accum = np.array(self._l_accum)
-        
+
         if l<0:
             return self.member_list[0].end_points[0]
         elif l>max(l_accum):
@@ -482,8 +575,25 @@ class Path:
         else:
             idx = np.where(l_accum-l>0)
             return self.member_list[idx].point_at_length(l_accum[idx]-l)
+
+    def distance_to_point(self, p):
+        d_list = [member.distance_to_point(p) for member in self.member_list]
+        return min(d_list)
+
+    def rot(self, origin, angle):
+        path = Path([member.rot(origin, angle) for member in self.member_list])
+        path.ref_list = [ref.rot(origin, angle) for ref in self.ref_list]
+        return path
         
+    def rotd(self, origin, angled):
+        angle = angled*np.pi/180
+        return self.rot(origin, angle)
+
+    def translate(self, shift_vec):
+        path = Path([member.translate(shift_vec) for member in self.member_list])
+        path.ref_list = [ref.translate(shift_vec) for ref in self.ref_list]
+        return path
+
     def plot(self, ax):
         for member in self.member_list:
             member.plot(ax)
-        
